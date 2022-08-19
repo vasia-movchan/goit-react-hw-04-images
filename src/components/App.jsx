@@ -1,4 +1,4 @@
-import { Component } from 'react';
+import { useState, useEffect } from 'react';
 import { Container } from './App.styled';
 import Searchbar from 'components/Searchbar/Searchbar';
 import { ImageGallery } from 'components/ImageGallery/ImageGallery';
@@ -7,39 +7,38 @@ import { GetDataFromAPI } from 'services/Api';
 import Modal from 'components/Modal/Modal';
 import { Loader } from 'components/Loader/Loader';
 
-export class App extends Component {
-  state = {
-    inputValue: '',
-    images: [],
-    totalHits: 0,
-    page: 1,
-    showModal: false,
-    largeImage: '',
-    isLoading: false,
-    error: null,
+const App = () => {
+  const [inputValue, setInputValue] = useState('');
+  const [images, setImages] = useState([]);
+  const [totalHits, setTotalHits] = useState(0);
+  const [page, setPage] = useState(1);
+  const [showModal, setShowModal] = useState(false);
+  const [largeImage, setLargeImage] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const submitForm = searchQuery => {
+    setInputValue(searchQuery);
+    setPage(1);
   };
 
-  submitForm = searchQuery => {
-    this.setState({ inputValue: searchQuery, page: 1, images: [] });
+  const handleButtonLoadMore = () => {
+    setPage(page => page + 1);
   };
 
-  handleButtonLoadMore = () => {
-    this.setState(prevState => {
-      return { page: prevState.page + 1 };
-    });
+  const openModal = largeImageItem => {
+    setShowModal(true);
+    setLargeImage(largeImageItem);
   };
 
-  openModal = largeImageItem => {
-    this.setState({ showModal: true, largeImage: largeImageItem });
-  };
-
-  closeModal = event => {
+  const closeModal = event => {
     if (event.target === event.currentTarget || event.code === 'Escape') {
-      this.setState({ showModal: false, largeImage: '' });
+      setShowModal(false);
+      setLargeImage('');
     }
   };
 
-  getDataforState = data => {
+  const getDataforState = data => {
     const dataForState = data.map(elem => {
       return {
         id: elem.id,
@@ -50,48 +49,46 @@ export class App extends Component {
     return dataForState;
   };
 
-  async componentDidUpdate(prevProps, prevState) {
-    const searchQuery = this.state.inputValue;
-    const page = this.state.page;
+  useEffect(() => {
+    async function fetchData() {
+      if (inputValue !== '') {
+        setIsLoading(true);
 
-    if ((prevState.inputValue !== searchQuery || prevState.page) !== page) {
-      this.setState({ isLoading: true });
-      try {
-        const response = await GetDataFromAPI(searchQuery, page);
-        const imagesArray = this.getDataforState(response.hits);
-        this.setState({
-          images: [...this.state.images, ...imagesArray],
-          totalHits: response.totalHits,
-        });
-      } catch (error) {
-        this.setState({ error });
-      } finally {
-        this.setState({
-          isLoading: false,
-        });
+        try {
+          const response = await GetDataFromAPI(inputValue, page);
+          const imagesArray = getDataforState(response.hits);
+          setImages(images => {
+            return page === 1 ? [...imagesArray] : [...images, ...imagesArray];
+          });
+          setTotalHits(response.totalHits);
+        } catch (error) {
+          setError(error);
+        } finally {
+          setIsLoading(false);
+        }
       }
     }
-  }
 
-  render() {
-    const { images, totalHits, showModal, largeImage, isLoading, error } =
-      this.state;
-    return (
-      <Container>
-        <Searchbar onSubmit={searchQuery => this.submitForm(searchQuery)} />
+    fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inputValue, page]);
 
-        {error && <p>Whoops, something went wrong: {error.message}</p>}
-        {images.length > 0 && (
-          <ImageGallery images={images} openModal={this.openModal} />
-        )}
-        {isLoading && <Loader />}
-        {images.length > 0 && totalHits > 12 && (
-          <Button loadMore={this.handleButtonLoadMore} />
-        )}
-        {showModal && (
-          <Modal largeImg={largeImage} closeModal={this.closeModal} />
-        )}
-      </Container>
-    );
-  }
-}
+  return (
+    <Container>
+      <Searchbar onSubmit={searchQuery => submitForm(searchQuery)} />
+
+      {error && <p>Whoops, something went wrong: {error.message}</p>}
+
+      {images.length > 0 && (
+        <ImageGallery images={images} openModal={openModal} />
+      )}
+      {isLoading && <Loader />}
+      {images.length > 0 && totalHits > 12 && (
+        <Button loadMore={handleButtonLoadMore} />
+      )}
+      {showModal && <Modal largeImg={largeImage} closeModal={closeModal} />}
+    </Container>
+  );
+};
+
+export default App;
